@@ -114,6 +114,11 @@ std::string basebandManifestTempPath = futurerestoreTempPath + "/basebandManifes
 std::string sepTempPath = futurerestoreTempPath + "/sep.im4p";
 std::string sepManifestTempPath = futurerestoreTempPath + "/sepManifest.plist";
 
+#ifdef HAVE_LIBIPATCHER
+std::string customIBSSPath;
+std::string customIBECPath;
+#endif
+
 #ifdef __APPLE__
 #include <sys/sysctl.h>
 #   include <CommonCrypto/CommonDigest.h>
@@ -636,36 +641,66 @@ void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootarg
         ibec_name.append(img3_end);
     }
     std::allocator<uint8_t> alloc;
+
+    auto loadCustomImage = [&](const std::string &path, std::pair<ptr_smart<char *>, size_t> &image, const char *name) {
+        FILE *file = fopen(path.c_str(), "rb");
+        retassure(file, "can't open custom %s at %s\n", name, path.c_str());
+        fseek(file, 0, SEEK_END);
+        image.second = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        retassure(image.second > 0, "custom %s is empty: %s\n", name, path.c_str());
+        retassure(image.first = (char *)alloc.allocate(image.second), "failed to allocate memory for custom %s\n", name);
+        size_t freadRet = 0;
+        retassure((freadRet = fread((char *) image.first, 1, image.second, file)) == image.second,
+                  "failed to load custom %s. size=%zu but fread returned %zu\n", name, image.second, freadRet);
+        fclose(file);
+        info("Using custom %s: %s\n", name, path.c_str());
+    };
+
+    if (!customIBSSPath.empty()) {
+        loadCustomImage(customIBSSPath, iBSS, "iBSS");
+        cache1 = true;
+    }
+
+    if (!customIBECPath.empty()) {
+        loadCustomImage(customIBECPath, iBEC, "iBEC");
+        cache2 = true;
+    }
+
     if (!_noCache) {
-        ibss = fopen(ibss_name.c_str(), "rb");
-        if (ibss) {
-            fseek(ibss, 0, SEEK_END);
-            iBSS.second = ftell(ibss);
-            fseek(ibss, 0, SEEK_SET);
-            retassure(iBSS.first = (char *)alloc.allocate(iBSS.second), "failed to allocate memory for Rose\n");
-            size_t freadRet = 0;
-            retassure((freadRet = fread((char *) iBSS.first, 1, iBSS.second, ibss)) == iBSS.second,
-                      "failed to load iBSS. size=%zu but fread returned %zu\n", iBSS.second, freadRet);
-            fclose(ibss);
-            cache1 = true;
+        if (!cache1) {
+            ibss = fopen(ibss_name.c_str(), "rb");
+            if (ibss) {
+                fseek(ibss, 0, SEEK_END);
+                iBSS.second = ftell(ibss);
+                fseek(ibss, 0, SEEK_SET);
+                retassure(iBSS.first = (char *)alloc.allocate(iBSS.second), "failed to allocate memory for Rose\n");
+                size_t freadRet = 0;
+                retassure((freadRet = fread((char *) iBSS.first, 1, iBSS.second, ibss)) == iBSS.second,
+                          "failed to load iBSS. size=%zu but fread returned %zu\n", iBSS.second, freadRet);
+                fclose(ibss);
+                cache1 = true;
+            }
         }
-        ibec = fopen(ibec_name.c_str(), "rb");
-        if (ibec) {
-            fseek(ibec, 0, SEEK_END);
-            iBEC.second = ftell(ibec);
-            fseek(ibec, 0, SEEK_SET);
-            retassure(iBEC.first = (char *)alloc.allocate(iBEC.second), "failed to allocate memory for Rose\n");
-            size_t freadRet = 0;
-            retassure((freadRet = fread((char *) iBEC.first, 1, iBEC.second, ibec)) == iBEC.second,
-                      "failed to load iBEC. size=%zu but fread returned %zu\n", iBEC.second, freadRet);
-            fclose(ibec);
-            cache2 = true;
+        if (!cache2) {
+            ibec = fopen(ibec_name.c_str(), "rb");
+            if (ibec) {
+                fseek(ibec, 0, SEEK_END);
+                iBEC.second = ftell(ibec);
+                fseek(ibec, 0, SEEK_SET);
+                retassure(iBEC.first = (char *)alloc.allocate(iBEC.second), "failed to allocate memory for Rose\n");
+                size_t freadRet = 0;
+                retassure((freadRet = fread((char *) iBEC.first, 1, iBEC.second, ibec)) == iBEC.second,
+                          "failed to load iBEC. size=%zu but fread returned %zu\n", iBEC.second, freadRet);
+                fclose(ibec);
+                cache2 = true;
+            }
         }
     }
 
     /* Patch bootloaders */
-    if (!cache1 && !cache2) {
-        try {
+    try {
+        if (!cache1 || !cache2) {
             std::string board = getDeviceBoardNoCopy();
             info("Getting firmware keys for: %s\n", board.c_str());
             if (board == "n71ap" || board == "n71map" || board == "n69ap" || board == "n69uap" || board == "n66ap" ||
@@ -686,9 +721,9 @@ void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootarg
                     iBECKeys = libipatcher::getFirmwareKey(_client->device->product_type, _client->build, "iBEC");
                 }
             }
-        } catch (tihmstar::exception &e) {
-            reterror("getting keys failed with error: %d (%s). Are keys publicly available?", e.code(), e.what());
         }
+    } catch (tihmstar::exception &e) {
+        reterror("getting keys failed with error: %d (%s). Are keys publicly available?", e.code(), e.what());
     }
 
     if (!iBSS.first && !_noIBSS) {

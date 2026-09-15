@@ -27,6 +27,11 @@ extern void restore_set_ignore_bb_fail(int input);
 #endif
 #endif
 
+enum {
+        OPT_CUSTOM_IBSS = 1000,
+        OPT_CUSTOM_IBEC = 1001
+};
+
 static struct option longopts[] = {
         { "apticket",                   required_argument,      nullptr, 't' },
         { "baseband",                   required_argument,      nullptr, 'b' },
@@ -57,6 +62,8 @@ static struct option longopts[] = {
         { "boot-args",                  required_argument,      nullptr, '9' },
         { "no-cache",                   no_argument,            nullptr, 'a' },
         { "skip-blob",                  no_argument,            nullptr, 'f' },
+        { "custom-ibss",                 required_argument,      nullptr, OPT_CUSTOM_IBSS },
+        { "custom-ibec",                 required_argument,      nullptr, OPT_CUSTOM_IBEC },
 #endif
         { nullptr, 0, nullptr, 0 }
 };
@@ -281,6 +288,14 @@ int main_r(int argc, const char * argv[]) {
                 break;
             case 'f': // long option: "skip-blob";
                 flags |= FLAG_SKIP_BLOB;
+                break;
+            case OPT_CUSTOM_IBSS:
+                extern std::string customIBSSPath;
+                customIBSSPath = optarg;
+                break;
+            case OPT_CUSTOM_IBEC:
+                extern std::string customIBECPath;
+                customIBECPath = optarg;
                 break;
 #endif
             case 'e': // long option: "exit-recovery"; can be called as short option
