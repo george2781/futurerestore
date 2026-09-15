@@ -9,7 +9,7 @@ export BASE=${TMPDIR}/Builder/repos/futurerestore/
 #sed -i 's/deb\.debian\.org/ftp.de.debian.org/g' /etc/apt/sources.list
 apt-get -qq update
 apt-get -yqq dist-upgrade
-apt-get install --no-install-recommends -yqq zstd curl gnupg2 lsb-release wget software-properties-common build-essential git autoconf automake libtool-bin pkg-config cmake zlib1g-dev libminizip-dev libpng-dev libreadline-dev libbz2-dev libudev-dev libudev1
+apt-get install --no-install-recommends -yqq zstd curl gnupg2 lsb-release wget software-properties-common build-essential git autoconf automake libtool-bin pkg-config cmake zlib1g-dev libminizip-dev libplist-dev libpng-dev libreadline-dev libbz2-dev libudev-dev libudev1
 cp -RpP /usr/bin/ld /
 rm -rf /usr/bin/ld /usr/lib/x86_64-linux-gnu/lib{usb-1.0,png*,readline}.so*
 chown -R 0:0 ${BASE}
